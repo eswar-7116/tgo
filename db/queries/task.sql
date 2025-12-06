@@ -1,8 +1,8 @@
 -- name: CreateTask :one
 INSERT INTO
-    tasks (title)
+    tasks (title, tag)
 VALUES
-    (?) RETURNING *;
+    (?, ?) RETURNING *;
 
 -- name: GetAllTasks :many
 SELECT
@@ -22,6 +22,19 @@ FROM
     tasks
 WHERE
     id = ?;
+
+-- name: GetTasksByTag :many
+SELECT
+    *
+FROM
+    tasks
+WHERE
+    tag = ?
+ORDER BY
+    CASE
+        WHEN ? = 'updated' THEN updated_at
+        ELSE created_at
+    END DESC;
 
 -- name: GetTasksByStatus :many
 SELECT
@@ -49,15 +62,21 @@ DELETE FROM tasks
 WHERE
     status = ? RETURNING *;
 
+-- name: DeleteByTag :many
+DELETE FROM tasks
+WHERE
+    status = ? RETURNING *;
+
 -- name: UpdateById :one
 UPDATE tasks
 SET
     title = ?,
-    status = ?
+    status = ?,
+    tag = ?
 WHERE
     id = ? RETURNING *;
 
--- name: GetByTitle :many
+-- name: GetTasksByTitle :many
 SELECT
     *
 FROM

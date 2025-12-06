@@ -12,17 +12,23 @@ import (
 
 const createTask = `-- name: CreateTask :one
 INSERT INTO
-    tasks (title)
+    tasks (title, tag)
 VALUES
-    (?) RETURNING id, title, status, created_at, updated_at
+    (?, ?) RETURNING id, title, tag, status, created_at, updated_at
 `
 
-func (q *Queries) CreateTask(ctx context.Context, title string) (Task, error) {
-	row := q.db.QueryRowContext(ctx, createTask, title)
+type CreateTaskParams struct {
+	Title string
+	Tag   sql.NullString
+}
+
+func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
+	row := q.db.QueryRowContext(ctx, createTask, arg.Title, arg.Tag)
 	var i Task
 	err := row.Scan(
 		&i.ID,
 		&i.Title,
+		&i.Tag,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -31,7 +37,7 @@ func (q *Queries) CreateTask(ctx context.Context, title string) (Task, error) {
 }
 
 const deleteAllTasks = `-- name: DeleteAllTasks :many
-DELETE FROM tasks RETURNING id, title, status, created_at, updated_at
+DELETE FROM tasks RETURNING id, title, tag, status, created_at, updated_at
 `
 
 func (q *Queries) DeleteAllTasks(ctx context.Context) ([]Task, error) {
@@ -46,6 +52,7 @@ func (q *Queries) DeleteAllTasks(ctx context.Context) ([]Task, error) {
 		if err := rows.Scan(
 			&i.ID,
 			&i.Title,
+			&i.Tag,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -66,7 +73,7 @@ func (q *Queries) DeleteAllTasks(ctx context.Context) ([]Task, error) {
 const deleteById = `-- name: DeleteById :one
 DELETE FROM tasks
 WHERE
-    id = ? RETURNING id, title, status, created_at, updated_at
+    id = ? RETURNING id, title, tag, status, created_at, updated_at
 `
 
 func (q *Queries) DeleteById(ctx context.Context, id int64) (Task, error) {
@@ -75,6 +82,7 @@ func (q *Queries) DeleteById(ctx context.Context, id int64) (Task, error) {
 	err := row.Scan(
 		&i.ID,
 		&i.Title,
+		&i.Tag,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -85,7 +93,7 @@ func (q *Queries) DeleteById(ctx context.Context, id int64) (Task, error) {
 const deleteByStatus = `-- name: DeleteByStatus :many
 DELETE FROM tasks
 WHERE
-    status = ? RETURNING id, title, status, created_at, updated_at
+    status = ? RETURNING id, title, tag, status, created_at, updated_at
 `
 
 func (q *Queries) DeleteByStatus(ctx context.Context, status sql.NullString) ([]Task, error) {
@@ -100,6 +108,43 @@ func (q *Queries) DeleteByStatus(ctx context.Context, status sql.NullString) ([]
 		if err := rows.Scan(
 			&i.ID,
 			&i.Title,
+			&i.Tag,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const deleteByTag = `-- name: DeleteByTag :many
+DELETE FROM tasks
+WHERE
+    status = ? RETURNING id, title, tag, status, created_at, updated_at
+`
+
+func (q *Queries) DeleteByTag(ctx context.Context, status sql.NullString) ([]Task, error) {
+	rows, err := q.db.QueryContext(ctx, deleteByTag, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Task
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Tag,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -119,7 +164,7 @@ func (q *Queries) DeleteByStatus(ctx context.Context, status sql.NullString) ([]
 
 const getAllTasks = `-- name: GetAllTasks :many
 SELECT
-    id, title, status, created_at, updated_at
+    id, title, tag, status, created_at, updated_at
 FROM
     tasks
 ORDER BY
@@ -141,49 +186,7 @@ func (q *Queries) GetAllTasks(ctx context.Context) ([]Task, error) {
 		if err := rows.Scan(
 			&i.ID,
 			&i.Title,
-			&i.Status,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getByTitle = `-- name: GetByTitle :many
-SELECT
-    id, title, status, created_at, updated_at
-FROM
-    tasks
-WHERE
-    title LIKE '%' || ? || '%'
-ORDER BY
-    CASE
-        WHEN ? = 'updated' THEN t.updated_at
-        ELSE t.created_at
-    END DESC
-`
-
-func (q *Queries) GetByTitle(ctx context.Context, dollar_1 sql.NullString) ([]Task, error) {
-	rows, err := q.db.QueryContext(ctx, getByTitle, dollar_1)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Task
-	for rows.Next() {
-		var i Task
-		if err := rows.Scan(
-			&i.ID,
-			&i.Title,
+			&i.Tag,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -203,7 +206,7 @@ func (q *Queries) GetByTitle(ctx context.Context, dollar_1 sql.NullString) ([]Ta
 
 const getTaskById = `-- name: GetTaskById :one
 SELECT
-    id, title, status, created_at, updated_at
+    id, title, tag, status, created_at, updated_at
 FROM
     tasks
 WHERE
@@ -216,6 +219,7 @@ func (q *Queries) GetTaskById(ctx context.Context, id int64) (Task, error) {
 	err := row.Scan(
 		&i.ID,
 		&i.Title,
+		&i.Tag,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -225,7 +229,7 @@ func (q *Queries) GetTaskById(ctx context.Context, id int64) (Task, error) {
 
 const getTasksByStatus = `-- name: GetTasksByStatus :many
 SELECT
-    id, title, status, created_at, updated_at
+    id, title, tag, status, created_at, updated_at
 FROM
     tasks
 WHERE
@@ -249,6 +253,95 @@ func (q *Queries) GetTasksByStatus(ctx context.Context, status sql.NullString) (
 		if err := rows.Scan(
 			&i.ID,
 			&i.Title,
+			&i.Tag,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTasksByTag = `-- name: GetTasksByTag :many
+SELECT
+    id, title, tag, status, created_at, updated_at
+FROM
+    tasks
+WHERE
+    tag = ?
+ORDER BY
+    CASE
+        WHEN ? = 'updated' THEN updated_at
+        ELSE created_at
+    END DESC
+`
+
+func (q *Queries) GetTasksByTag(ctx context.Context, tag sql.NullString) ([]Task, error) {
+	rows, err := q.db.QueryContext(ctx, getTasksByTag, tag)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Task
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Tag,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTasksByTitle = `-- name: GetTasksByTitle :many
+SELECT
+    id, title, tag, status, created_at, updated_at
+FROM
+    tasks
+WHERE
+    title LIKE '%' || ? || '%'
+ORDER BY
+    CASE
+        WHEN ? = 'updated' THEN t.updated_at
+        ELSE t.created_at
+    END DESC
+`
+
+func (q *Queries) GetTasksByTitle(ctx context.Context, dollar_1 sql.NullString) ([]Task, error) {
+	rows, err := q.db.QueryContext(ctx, getTasksByTitle, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Task
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Tag,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -270,23 +363,31 @@ const updateById = `-- name: UpdateById :one
 UPDATE tasks
 SET
     title = ?,
-    status = ?
+    status = ?,
+    tag = ?
 WHERE
-    id = ? RETURNING id, title, status, created_at, updated_at
+    id = ? RETURNING id, title, tag, status, created_at, updated_at
 `
 
 type UpdateByIdParams struct {
 	Title  string
 	Status sql.NullString
+	Tag    sql.NullString
 	ID     int64
 }
 
 func (q *Queries) UpdateById(ctx context.Context, arg UpdateByIdParams) (Task, error) {
-	row := q.db.QueryRowContext(ctx, updateById, arg.Title, arg.Status, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateById,
+		arg.Title,
+		arg.Status,
+		arg.Tag,
+		arg.ID,
+	)
 	var i Task
 	err := row.Scan(
 		&i.ID,
 		&i.Title,
+		&i.Tag,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,

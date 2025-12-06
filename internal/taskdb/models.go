@@ -11,6 +11,7 @@ import (
 type Task struct {
 	ID        int64
 	Title     string
+	Tag       sql.NullString
 	Status    sql.NullString
 	CreatedAt sql.NullTime
 	UpdatedAt sql.NullTime

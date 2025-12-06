@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS
     tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
+        tag TEXT,
         status VARCHAR(5) DEFAULT 'TODO',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
